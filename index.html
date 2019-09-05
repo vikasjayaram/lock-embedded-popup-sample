@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="common/bootstrap.min.css"/>
+  <link rel="stylesheet" href="common/prism.css"/>
+  <link rel="stylesheet" href="common/style.css"/>
+
+  <title>Auth0 Template</title>
+</head>
+<body>
+  <div class="container-fluid">
+
+    <div class="header">
+      <h1>Embedded Lock 11</h1>
+
+      <!-- Login buttons -->
+      <div class="row">
+        <div class="col-xs-12">
+          <button type="button" id="login" class="btn btn-lg btn-primary">Login</button>
+          <button type="button" id="renew" class="btn btn-primary">Renew</button>
+          <button type="button" id="logout" class="btn btn-danger">Logout</button>
+        </div>
+      </div>
+    </div>
+
+    <hr/>
+
+    <!-- ID Token results -->
+    <div class="row">
+      <div class="col-md-6 col-xs-12">
+        <div>
+          <p>ID Token 
+          [<a id="jwtio_id" href="#" target="_blank">Open in jwt.io</a>]
+          <button type="button" class="clip btn btn-sm btn-info" data-clipboard-target="#txt-idtoken">Copy</button>
+          </p>
+          <input id="txt-idtoken" readonly class="form-control" type="text"/>
+        </div>
+        <div>
+          <p>Access Token
+          [<a id="jwtio_at" href="#" target="_blank">Open in jwt.io</a>]
+          <button type="button" class="clip btn btn-sm btn-info" data-clipboard-target="#txt-accesstoken">Copy</button>
+          </p>
+          <input type="text" readonly id="txt-accesstoken" class="form-control"/>
+        </div>
+        <div>
+          <p>user_id
+          <button type="button" class="clip btn btn-sm btn-info" data-clipboard-target="#txt-userid">Copy</button>
+          </p>
+          <input type="text" readonly id="txt-userid" class="form-control"/>
+        </div>
+      </div>
+      <div class="col-md-6 col-xs-12">
+        <p>ID Token Payload
+        <button type="button" class="clip btn btn-sm btn-info" data-clipboard-target="#code-idtokenpayload">Copy</button>
+        </p>
+        <pre id="idtoken"><code id="code-idtokenpayload" class="language-javascript"></code>
+      </div>
+    </div>
+
+    <hr/>
+
+    <!-- Profile results -->
+    <div class="row">
+      <div class="col-md-6 col-xs-12">
+        <p>Profile
+        <button type="button" class="clip btn btn-sm btn-info" data-clipboard-target="#code-profile">Copy</button>
+        </p>
+        <pre><code id="code-profile" class="language-javascript"></code>
+      </div>
+      <div class="col-md-6 col-xs-12">
+        <p>Picture</p>
+        <img src="" id="picture" width="100"/>
+      </div>
+    </div>
+  </div>
+
+  <script src="//cdn.auth0.com/js/lock/11.16.0/lock.min.js"></script>
+  <script src="common/jquery-3.1.1.min.js"></script>
+  <script src="common/prism.js"></script>
+  <script src="common/clipboard.min.js"></script>
+  <script src="./auth0-variables.js"></script>
+
+  <script>
+    new Clipboard('.clip')
+
+    const oauthOptions = {
+      audience: AUDIENCE,
+      scope: SCOPES
+    }
+
+    const lockOptions = {
+      autoclose: true,
+      //allowedConnections: ['Username-Password-Authentication'],
+      auth: {
+        redirect: false,
+        //redirectUrl: location.href,
+        responseType: 'token id_token',
+        params: {
+          scope: oauthOptions.scope,
+        },
+        audience: oauthOptions.audience
+      },
+    }
+
+    const lock = new Auth0Lock(CLIENT_ID, AUTH0_DOMAIN, lockOptions)
+
+    const onAuthenticated = authResult => {
+      console.log('on authenticated')
+      console.log(authResult)
+
+      $('#txt-idtoken').val(authResult.idToken)
+      $('a#jwtio_id').attr('href', `https://jwt.io/#id_token=${authResult.idToken}`)
+      $('#txt-accesstoken').val(authResult.accessToken)
+      $('a#jwtio_at').attr('href', `https://jwt.io/#access_token=${authResult.accessToken}`)
+      $('#txt-userid').val(authResult.idTokenPayload.sub)
+      setJSON('#code-idtokenpayload', authResult.idTokenPayload)
+
+      lock.getUserInfo(authResult.accessToken, (err, profile) => {
+        if (err) {
+          $('#txt-profile').text(err)
+          return
+        }
+
+        $('#txt-userid').val(profile.sub)
+        setJSON('#code-profile', profile)
+        $('img#picture').attr('src', profile.picture)
+      })
+    }
+
+    const renewTokens = () => {
+      lock.checkSession(oauthOptions, (err, authResult) => {
+        if (err) {
+          console.log(err)
+          alert('Error occurred during checkSession. See console.')
+          return
+        }
+
+        if (!authResult) {
+          alert('Empty authResult')
+          return
+        }
+
+        onAuthenticated(authResult)
+      })
+    }
+
+    const setJSON = (query, code) => {
+      const $elem = $(query)
+      $elem.text(JSON.stringify(code, null, 2))
+      Prism.highlightElement($elem[0])
+    }
+
+    const onError = err => {
+      console.log(err)
+      $('#txt-idtoken').text(err)
+    }
+
+    lock.on('authenticated', onAuthenticated)
+    lock.on('authorization_error', onError)
+    lock.on('unrecoverable_error', onError)
+
+    $('#login').click(() => lock.show())
+
+    $('#renew').click(renewTokens)
+
+    $('#logout').click(() => lock.logout({ returnTo: location.href }))
+
+    //$('a#logout').attr('href', `https://vjayaram-playground.au.auth0.com/v2/logout?federated&client_id=${CLIENT_ID}&returnTo=${location.href}`)
+  </script>
+</body>
+</html>
